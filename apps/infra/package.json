@@ -1,0 +1,15 @@
+{
+  "name": "@percy/infra",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "synth": "cdk synth -c instance=dev --quiet -o /tmp/percy-cdk.out"
+  },
+  "dependencies": {
+    "@percy/shared": "0.1.0",
+    "@percy/platform": "0.1.0",
+    "@percy/contactsg": "0.1.0",
+    "@percy/engine": "0.1.0"
+  }
+}
