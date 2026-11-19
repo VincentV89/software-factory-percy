@@ -25,6 +25,9 @@ export function ListDetail() {
   const members = useLoad(() => api<{ items: { addrHash: string; email?: string; attrs: Record<string, string>; suppressed: boolean }[] }>('GET', `${base}/members`), [base, list.data?.memberCount]);
   const [error, setError] = useState<unknown>();
   const [uploading, setUploading] = useState(false);
+  const [name, setName] = useState('');
+  const [renamed, setRenamed] = useState(false);
+  useEffect(() => setName(list.data?.name ?? ''), [list.data?.name]);
   const file = useRef<HTMLInputElement>(null);
   const running = imports.data?.items.some((i) => !FINAL.includes(i.status)) ?? false;
   useEffect(() => setPoll(running ? 2000 : undefined), [running]);
@@ -64,6 +67,14 @@ export function ListDetail() {
   return (
     <section data-testid="list-detail">
       <h1>{list.data?.name}</h1>
+      <form className="inline" onSubmit={(event) => {
+        event.preventDefault(); setError(undefined); setRenamed(false);
+        void api('PATCH', base, { name }).then(() => { list.reload(); setRenamed(true); }, setError);
+      }}>
+        <label>List name <input required maxLength={120} value={name} onChange={(e) => setName(e.target.value)} data-testid="list-rename-name" /></label>
+        <button type="submit" data-testid="list-rename-submit">Rename list</button>
+        {renamed && <span role="status" className="notice">Name saved.</span>}
+      </form>
       <p>Members: <span data-testid="list-member-count">{list.data?.memberCount ?? 0}</span> · Audience: <span data-testid="list-audience-count">{list.data?.eligibleCount ?? 0}</span></p>
       <div className="card">
         <h2>Upload a CSV</h2>

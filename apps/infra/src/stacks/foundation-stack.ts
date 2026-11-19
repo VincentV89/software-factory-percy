@@ -160,6 +160,8 @@ export class FoundationStack extends Stack {
     });
     this.authorizer = fn('PlatformAuthorizer', 'packages/platform/src/handlers/authorizer.ts', 'REQUEST authorizer: session, CSRF, live roles');
     this.platformApi = fn('PlatformApi', 'packages/platform/src/handlers/api.ts', 'Platform admin API');
+    this.platformApi.addEnvironment('COGNITO_USER_POOL_ID', this.userPool.userPoolId);
+    this.platformApi.addToRolePolicy(new iam.PolicyStatement({ actions: ['cognito-idp:AdminCreateUser'], resources: [this.userPool.userPoolArn] }));
 
     for (const f of [this.bff, this.authorizer, this.platformApi]) {
       this.grantAudit(f);

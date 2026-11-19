@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Forbidden, NotFound, Router, json, parseBody, type Logger, type RouteContext } from '@percy/shared';
+import type { OfficerInvitations } from './officer-invitations';
 import { isAgencyAdmin, principalFrom, teamRoleSchema, tierSchema, type AuditClient, type Principal } from '@percy/platform-contract';
 import type { SessionRepo } from './session-repo';
 import type { TenancyRepo } from './tenancy-repo';
@@ -9,6 +10,8 @@ export interface PlatformApiDeps {
   sessions: SessionRepo;
   audit: AuditClient;
   logger: Logger;
+  invitations?: OfficerInvitations;
+  testingEnabled?: boolean;
 }
 
 const nameBody = z.object({ name: z.string().trim().min(1).max(120) });
@@ -43,7 +46,18 @@ export function createPlatformApi(deps: PlatformApiDeps): Router {
     const p = principalFrom(ctx.event);
     const session = await deps.sessions.get(p.sessionId);
     const officer = await tenancy.getOfficer(p.officerId);
-    return json(200, { officerId: p.officerId, email: officer?.email, platformAdmin: p.platformAdmin, agencyAdmin: p.agencyAdmin, teams: p.teams, csrfToken: session?.csrfToken });
+    return json(200, { officerId: p.officerId, email: officer?.email, platformAdmin: p.platformAdmin, agencyAdmin: p.agencyAdmin, teams: p.teams, csrfToken: session?.csrfToken, testingEnabled: deps.testingEnabled ?? false });
+  });
+
+  r.post('/api/platform/officer-invitations', async (ctx) => {
+    const p = principalFrom(ctx.event);
+    requirePlatformAdmin(p);
+    if (!deps.invitations) throw new NotFound('Officer invitations are not available.');
+    const body = parseBody(z.object({ email: emailParam }), ctx.json());
+    const invitation = await deps.invitations.invite(body.email);
+    const officer = await tenancy.ensureOfficer(body.email);
+    await record(ctx, p, 'officer.invite', 'officer', officer.officerId);
+    return json(201, { officerId: officer.officerId, delivery: invitation.delivery });
   });
 
   r.get('/api/platform/agencies', async (ctx) => {

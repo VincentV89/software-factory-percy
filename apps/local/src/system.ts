@@ -149,7 +149,9 @@ export function createSystem(opts: SystemOptions = {}) {
   const sessions = new SessionRepo(kv, TABLES.sessions, policy);
   const oidc = new FakeOidc(baseUrl);
   const bff: BffDeps = { sessions, tenancy, oidc, audit, policy, publicBaseUrl: async () => baseUrl, now, logger };
-  const platformApi = createPlatformApi({ tenancy, sessions, audit, logger });
+  const platformApi = createPlatformApi({ tenancy, sessions, audit, logger, testingEnabled: true,
+    invitations: { invite: async () => ({ delivery: 'local' as const }) },
+  });
 
   // ---- ContactSG ----------------------------------------------------------
   const contactSg: ContactSgDeps = {

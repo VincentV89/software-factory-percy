@@ -39,6 +39,7 @@ export function createEngineApi(d: EngineCpDeps): Router {
     ...c,
     templateSnapshot: c.templateSnapshot ? { subject: c.templateSnapshot.subject, fields: c.templateSnapshot.fields } : undefined,
     permissions: {
+      canEdit: canTransition(c.state, 'edit'),
       canApprove: c.state === 'PENDING_APPROVAL' && svc.canApprove(a.p, a.team, c),
       actions: CAMPAIGN_ACTIONS.filter((x): x is CampaignAction & OfficerAction => (OFFICER_ACTIONS as readonly string[]).includes(x) && canTransition(c.state, x)).filter(
         (x) => (x !== 'approve' && x !== 'reject') || svc.canApprove(a.p, a.team, c),

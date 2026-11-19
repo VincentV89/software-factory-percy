@@ -10,6 +10,15 @@ const byName = (name: string, instance = 'dev') => {
 };
 
 describe('CDK assertions (dev)', () => {
+  it('officer invitations are scoped to the officer pool and platform API role', () => {
+    const all = templates('dev');
+    const invitations = grants(all).filter((grant) => grant.actions.includes('cognito-idp:AdminCreateUser'));
+    expect(invitations).toHaveLength(1);
+    const invitation = invitations[0];
+    expect(invitation?.role.logicalId).toMatch(/^PlatformApiServiceRole/);
+    expect(invitation?.resources.map((resource) => resolveRef(resource, invitation.stack, all)?.logicalId)).toEqual([expect.stringMatching(/^Officers/)]);
+  });
+
   it('audit producers can generate and decrypt the Firehose stream data key', () => {
     const stacks = templates('dev');
     const allGrants = grants(stacks);

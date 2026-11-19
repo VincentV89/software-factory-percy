@@ -62,6 +62,11 @@ export function TemplateEditor() {
   return (
     <section>
       <h1>{templateId ? 'Edit template' : 'New template'}</h1>
+      {templateId && <button type="button" className="danger" onClick={() => {
+        if (window.confirm('Delete this template? Existing campaign snapshots are retained.')) {
+          void api('DELETE', `/api/engine/teams/${teamId}/templates/${templateId}`).then(() => navigate(`/teams/${teamId}/templates`), setError);
+        }
+      }} data-testid="template-delete-button">Delete template</button>}
       <form onSubmit={(e) => void save(e)} className="card" data-testid="template-form">
         <label>Name <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required data-testid="template-form-name" /></label>
         <label>Subject <input value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} required data-testid="template-form-subject" /></label>
