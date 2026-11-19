@@ -183,6 +183,6 @@ export class FoundationStack extends Stack {
 
   grantAudit(grantee: iam.IGrantable): void {
     grantee.grantPrincipal.addToPrincipalPolicy(new iam.PolicyStatement({ actions: ['firehose:PutRecord', 'firehose:PutRecordBatch'], resources: [this.auditStream.attrArn] }));
-    this.keys.platform.grantEncrypt(grantee);
+    this.keys.platform.grant(grantee, 'kms:GenerateDataKey', 'kms:Decrypt');
   }
 }

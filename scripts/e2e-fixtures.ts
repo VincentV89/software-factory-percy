@@ -21,10 +21,11 @@ const tenancy = new TenancyRepo(kv, tableName(instance, 'platform-tenancy'), tab
 const cognito = new CognitoIdentityProviderClient({});
 const sm = new SecretsManagerClient({});
 
-const agency = (await tenancy.listAgencies()).find((a) => a.name === 'E2E Agency') ?? (await tenancy.createAgency('E2E Agency'));
+const agencyName = arg('agency-name', 'E2E Agency');
+const agency = (await tenancy.listAgencies()).find((a) => a.name === agencyName) ?? (await tenancy.createAgency(agencyName));
 const team = (await tenancy.listTeams(agency.agencyId)).find((t) => t.name === 'E2E Team') ?? (await tenancy.createTeam(agency.agencyId, 'E2E Team', 'standard'));
 const users = { 'officer-a': ['member'], 'officer-b': ['member', 'approver'], 'admin-c': [] } as const;
-const env: string[] = [];
+const env: string[] = ["export E2E_AGENCY_NAME='" + agencyName.replaceAll("'", "'\\''") + "'"];
 for (const [user, roles] of Object.entries(users)) {
   const email = arg(`${user}-email`, `${user}@e2e.percy.invalid`);
   const password = `${randomBytes(18).toString('base64url')}aA1!`;

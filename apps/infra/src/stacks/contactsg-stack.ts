@@ -74,18 +74,21 @@ export class ContactSgStack extends Stack {
     tagOwner(gdRole, 'contactsg', 'async');
     gdRole.addToPolicy(new iam.PolicyStatement({ actions: ['s3:GetObject', 's3:GetObjectVersion', 's3:GetObjectTagging', 's3:GetObjectVersionTagging', 's3:PutObjectTagging', 's3:PutObjectVersionTagging'], resources: [uploads.arnForObjects('raw/*')] }));
     gdRole.addToPolicy(new iam.PolicyStatement({ actions: ['s3:ListBucket', 's3:GetBucketNotification', 's3:PutBucketNotification', 's3:GetBucketLocation'], resources: [uploads.bucketArn] }));
+    gdRole.addToPolicy(new iam.PolicyStatement({ actions: ['s3:PutObject'], resources: [uploads.arnForObjects('malware-protection-resource-validation-object')] }));
     gdRole.addToPolicy(
       new iam.PolicyStatement({
         actions: ['events:PutRule', 'events:DeleteRule', 'events:PutTargets', 'events:RemoveTargets', 'events:DescribeRule', 'events:ListTargetsByRule'],
         resources: [this.formatArn({ service: 'events', resource: 'rule', resourceName: 'DO-NOT-DELETE-AmazonGuardDutyMalwareProtectionS3*' })],
       }),
     );
-    key.grantDecrypt(gdRole);
-    new guardduty.CfnMalwareProtectionPlan(this, 'UploadsMalwareProtection', {
+    key.grant(gdRole, 'kms:Decrypt', 'kms:GenerateDataKey');
+    const malwarePlan = new guardduty.CfnMalwareProtectionPlan(this, 'UploadsMalwareProtection', {
       role: gdRole.roleArn,
       protectedResource: { s3Bucket: { bucketName: uploads.bucketName, objectPrefixes: ['raw/'] } },
       actions: { tagging: { status: 'ENABLED' } },
     });
+    // GuardDuty validates bucket access during creation, after the role's policy is attached.
+    malwarePlan.node.addDependency(gdRole.node.findChild('DefaultPolicy'));
     suppress(gdRole, [{ id: 'AwsSolutions-IAM5', reason: 'GuardDuty scans every object under raw/ and manages its own DO-NOT-DELETE-AmazonGuardDutyMalwareProtectionS3* rules (AWS-documented role policy).' }]);
 
     // ---- Queues ----

@@ -8,6 +8,6 @@ export default defineConfig({
   expect: { timeout: 30_000 },
   workers: 1,
   reporter: [['list']],
-  use: { baseURL: process.env['PERCY_BASE_URL'], ...devices['Desktop Chrome'], trace: 'retain-on-failure' },
+  use: { baseURL: process.env['PERCY_BASE_URL'], ...devices['Desktop Chrome'], trace: 'retain-on-failure', actionTimeout: 30_000, navigationTimeout: 30_000 },
   projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
 });

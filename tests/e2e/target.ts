@@ -3,6 +3,7 @@ import { expect, type Page } from '@playwright/test';
 /** Differences between the deployed dev instance and the local in-memory target, kept in one place. */
 export const target = {
   local: process.env['E2E_TARGET'] === 'local',
+  agencyName: process.env['E2E_AGENCY_NAME'] ?? 'E2E Agency',
   /** NFR-SAFE-01: no SES call more than this long after the command was accepted. */
   stopLimitMs: Number(process.env['E2E_STOP_LIMIT_MS'] ?? 60_000),
   /** How long to watch after the command (requirements step 15: 90 s). */
