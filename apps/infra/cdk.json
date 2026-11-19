@@ -1,0 +1,8 @@
+{
+  "app": "npx tsx bin/percy.ts",
+  "context": {
+    "instance": "dev",
+    "@aws-cdk/core:newStyleStackSynthesis": true
+  },
+  "output": "cdk.out"
+}
