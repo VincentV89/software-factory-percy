@@ -12,7 +12,7 @@ export function makeFixtures(tag: string, inbox: string): Record<string, string>
     'reserved-header.csv': csv([['email', 'unsubscribe_url'], [email('success', 'reserved'), 'https://example.com']]),
     'too-many-columns.csv': csv([['email', ...Array.from({ length: 21 }, (_, i) => `c${i}`)], [email('success', 'wide'), ...Array.from({ length: 21 }, () => 'x')]]),
     'wrong-column-count.csv': csv([['email', 'name'], [email('success', 'width')]]),
-    'outside-allowlist.csv': 'email,name\nsomeone@example.com,Outside',
+    'unverified-recipient.csv': 'email,name\nsomeone@example.com,Unverified',
     'inbox.csv': csv([['email', 'name'], [inbox, 'Tester']]),
     'eicar.csv': ['X5O!P%@AP[4\\PZX54(P^)7CC)7}$', 'EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*'].join(''),
   };

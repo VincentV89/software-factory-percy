@@ -5,6 +5,7 @@ select { max-width: 100%; padding: 0.4rem; }
 summary { cursor: pointer; font-weight: 600; padding: 0.4rem 0; }
 details li { margin: 0.6rem 0; line-height: 1.5; }
 .table-scroll { overflow-x: auto; }
+.recipient-address { display: block; max-width: 18rem; overflow-wrap: anywhere; margin-bottom: 0.4rem; }
 @media (max-width: 750px) { .topbar { flex-wrap: wrap; } .topbar .who { margin-left: 0; } .page { padding: 1rem; } .card { padding: 0.8rem; } }
 body { margin: 0; }
 a { color: #0b5cad; }

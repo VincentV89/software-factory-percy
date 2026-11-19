@@ -10,7 +10,7 @@ export interface InstanceConfig {
   /** percy-cp stage throttle (NFR-INF-07: 50 rps in dev). */
   apiThrottleRps: number;
   statusCacheMs: number;
-  /** SES sandbox allow-list, dev only (NFR-INF-05). */
+  /** Optional legacy recipient restriction for custom instances; dev reads SES verification live. */
   addressAllowList?: string[];
   sesIdentity: string;
   auditRetentionDays: number;
@@ -43,7 +43,7 @@ export function loadConfig(instance: string, ctx: { account?: string; sesIdentit
   };
   switch (instance) {
     case 'dev':
-      return { ...base, addressAllowList: [sesIdentity, '*@simulator.amazonses.com'], devExport: true };
+      return { ...base, devExport: true };
     case 'uat':
     case 'prod':
       return { ...base, retain: true, workerReservedConcurrency: 20 };

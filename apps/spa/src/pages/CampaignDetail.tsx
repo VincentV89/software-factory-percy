@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router';
 import { ApiError, api } from '../api';
 import { ErrorBox, StateBadge, formatTime, useLoad } from '../components';
 import { useMe } from '../session';
+import { RecipientVerificationPanel } from '../RecipientVerification';
 
 interface Campaign {
   campaignId: string;
@@ -54,6 +55,7 @@ export function CampaignDetail() {
   const [editing, setEditing] = useState(false);
   const [showLinks, setShowLinks] = useState(false);
   const [approvalCheck, setApprovalCheck] = useState('');
+  const [verificationVersion, setVerificationVersion] = useState(0);
   const base = `/api/engine/teams/${teamId}/campaigns/${campaignId}`;
   const [pollMs, setPollMs] = useState<number>();
   const campaign = useLoad(() => api<Campaign>('GET', base), [base], pollMs);
@@ -81,6 +83,7 @@ export function CampaignDetail() {
   const refresh = () => {
     campaign.reload();
     report.reload();
+    setVerificationVersion((v) => v + 1);
   };
 
   return (
@@ -97,7 +100,8 @@ export function CampaignDetail() {
         <dt>Scheduled</dt><dd>{formatTime(c.scheduleAt)}</dd>
         {c.templateSnapshot && (<><dt>Subject</dt><dd>{c.templateSnapshot.subject}</dd></>)}
       </dl>
-      {c.error && <p className="error" data-testid="campaign-error">{c.error}</p>}
+      {c.error && <div className="error"><p data-testid="campaign-error">Last send attempt: {c.error}</p>{me.testingEnabled && c.state === 'APPROVED' && <p>After correcting the issue, refresh the recipient status below and retry Send now. A successful refresh does not resend the campaign.</p>}</div>}
+      <RecipientVerificationPanel key={teamId + c.listId} teamId={teamId} listId={c.listId} version={c.state + (c.error ?? '') + verificationVersion} />
       {c.rejectReason && c.state === 'DRAFT' && <p className="error" data-testid="campaign-reject-reason">Rejected: {c.rejectReason}</p>}
       {c.state === 'PENDING_APPROVAL' && (c.createdBy === me.officerId || c.lastEditedBy === me.officerId) && <p className="muted">You cannot approve a campaign you created or last edited. Ask another approver to sign in.</p>}
       {editing && <CampaignEditor campaign={c} teamId={teamId} base={base} onSaved={() => { setEditing(false); refresh(); }} onCancel={() => setEditing(false)} />}

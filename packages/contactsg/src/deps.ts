@@ -1,6 +1,7 @@
 import type { Clock, KvStore, Logger, ObjectStore, QueueSender, UploadSigner, WorkflowStarter } from '@percy/shared';
 import type { AuditClient } from '@percy/platform-contract';
 import type { CsvLimits } from './domain/csv';
+import type { RecipientVerification } from './recipient-verification';
 
 export interface ContactSgTables {
   contacts: string;
@@ -22,6 +23,7 @@ export interface ContactSgConfig {
 export const DEFAULT_CONTACTSG_CONFIG: Omit<ContactSgConfig, 'limits'> = { chunkSize: 5000, partSize: 10_000, uploadUrlTtlSeconds: 900, freezeBudgetMs: 10 * 60_000 };
 
 export interface ContactSgDeps {
+  recipientVerification?: RecipientVerification;
   kv: KvStore;
   tables: ContactSgTables;
   store: ObjectStore;

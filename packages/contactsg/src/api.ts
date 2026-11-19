@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Forbidden, Router, hashOf, json, parseBody, type Logger, type RouteContext } from '@percy/shared';
+import { createRecipientVerifier } from './recipient-verification';
 import { isAgencyAdmin, principalFrom, requireTeam, type Principal, type PrincipalTeam } from '@percy/platform-contract';
 import type { ContactSgDeps } from './deps';
 import { ImportService } from './imports';
@@ -61,6 +62,22 @@ export function createContactSgApi(d: ContactSgDeps & { logger: Logger }): Route
   r.get(`${base}/:l/members`, async (ctx) => {
     const { team } = scope(ctx);
     return json(200, await lists.members(team.teamId, ctx.params['l'] ?? '', ctx.query['cursor']));
+  });
+
+  r.get(`${base}/:l/recipient-verification`, async (ctx) => {
+    const { team } = scope(ctx);
+    const page = await lists.members(team.teamId, ctx.params['l'] ?? '', ctx.query['cursor']);
+    if (!d.recipientVerification) return json(200, { mode: 'unrestricted', items: [] });
+    try {
+      const snapshot = await d.recipientVerification.snapshot();
+      const verify = createRecipientVerifier(snapshot);
+      return json(200, { mode: 'ses-verified', region: snapshot.region, checkedAt: snapshot.checkedAt, cursor: page.cursor,
+        items: page.items.map((member) => ({ ...member, verification: member.email ? verify(member.email) : { allowed: false, status: 'NOT_VERIFIED' } })),
+      });
+    } catch (error) {
+      d.logger.error('SES identity lookup failed', { requestId: ctx.requestId, error: error instanceof Error ? error : new Error('SES lookup unavailable') });
+      return json(503, { error: { code: 'VERIFICATION_UNAVAILABLE', message: 'SES verification status is unavailable. Refresh and try again. Sending still requires a successful SES check.', details: [], requestId: ctx.requestId } });
+    }
   });
 
   r.get(`${base}/:l/audience-count`, async (ctx) => {

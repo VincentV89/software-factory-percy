@@ -10,6 +10,21 @@ const byName = (name: string, instance = 'dev') => {
 };
 
 describe('CDK assertions (dev)', () => {
+  it('dev uses live SES verification instead of a fixed recipient allow-list', () => {
+    const all = templates('dev');
+    for (const stack of all) {
+      for (const resource of Object.values(stack.json.Resources)) {
+        if (resource.Type === 'AWS::Lambda::Function') {
+          expect((resource.Properties?.['Environment'] as { Variables?: Record<string, string> } | undefined)?.Variables?.['ADDRESS_ALLOW_LIST']).toBeUndefined();
+        }
+      }
+    }
+    const readers = grants(all).filter((grant) => grant.actions.includes('ses:ListEmailIdentities'));
+    expect(readers).toHaveLength(2);
+    expect(readers.map((grant) => grant.role.logicalId).sort()).toEqual([expect.stringMatching(/^ContactSgApiServiceRole/), expect.stringMatching(/^FreezeServiceRole/)]);
+    expect(grants(templates('prod')).some((grant) => grant.actions.includes('ses:ListEmailIdentities'))).toBe(false);
+  });
+
   it('officer invitations are scoped to the officer pool and platform API role', () => {
     const all = templates('dev');
     const invitations = grants(all).filter((grant) => grant.actions.includes('cognito-idp:AdminCreateUser'));

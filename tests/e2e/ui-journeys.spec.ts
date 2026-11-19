@@ -146,3 +146,49 @@ test('UI journeys: edit invalidates approval, delivery links, rename, and suppre
   }).toBe('0');
   await approverContext.close();
 });
+
+test('UI journeys: SES verification status refresh and unavailable state', async ({ page }) => {
+  test.skip(!target.local, 'Uses deterministic SES status responses for the browser.');
+  test.setTimeout(120_000);
+  const { teamId } = await agencyAndTeam(page);
+  await addMember(page, ROOT);
+  await page.reload();
+  await page.goto(`/teams/${teamId}/lists`);
+  await page.getByTestId('list-form-name').fill('SES status list');
+  await page.getByTestId('list-form-submit').click();
+  await page.getByTestId('list-link').filter({ hasText: 'SES status list' }).click();
+  await page.getByTestId('list-upload-input').setInputFiles({ name: 'verification.csv', mimeType: 'text/csv', buffer: Buffer.from('email,name\nverified@recipient.test,Verified\npending@recipient.test,Pending\nsuccess+ses-ui@simulator.amazonses.com,Simulator') });
+  await page.getByTestId('list-upload-button').click();
+  await expect(page.getByTestId('import-status')).toHaveText('COMPLETED', { timeout: 30_000 });
+  let pending = true;
+  let unavailable = false;
+  await page.route('**/recipient-verification', async (route) => {
+    if (unavailable) {
+      await route.fulfill({ status: 503, json: { error: { message: 'SES verification status is unavailable.' } } });
+      return;
+    }
+    const response = await route.fetch();
+    const data = await response.json() as { items: { email: string; verification: { status: string; allowed: boolean } }[] };
+    await route.fulfill({ response, json: { ...data, region: 'ap-southeast-1', checkedAt: new Date().toISOString(), items: data.items.map((item) => item.email.endsWith('@recipient.test') ? { ...item, verification: { status: item.email.startsWith('pending') && pending ? 'PENDING' : 'VERIFIED_EMAIL', allowed: !(item.email.startsWith('pending') && pending) } } : item) } });
+  });
+  await page.getByTestId('verification-refresh').click();
+  const pendingRow = page.getByTestId('verification-row').filter({ hasText: 'pending@recipient.test' });
+  await expect(pendingRow.getByTestId('verification-status')).toHaveText('Pending verification');
+  await expect(page.getByTestId('verification-row').filter({ hasText: 'verified@recipient.test' }).getByTestId('verification-status')).toHaveText('Verified email');
+  await expect(page.getByTestId('verification-row').filter({ hasText: 'success+ses-ui' }).getByTestId('verification-status')).toHaveText('Simulator (allowed)');
+  pending = false;
+  await page.getByTestId('verification-refresh').click();
+  await expect(pendingRow.getByTestId('verification-status')).toHaveText('Verified email');
+  await page.screenshot({ path: '/tmp/percy-ses-status-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(await page.getByTestId('verification-status').evaluateAll((badges) => badges.every((badge) => {
+    const bounds = badge.getBoundingClientRect();
+    return bounds.left >= 0 && bounds.right <= innerWidth;
+  }))).toBe(true);
+  await page.screenshot({ path: '/tmp/percy-ses-status-mobile.png', fullPage: true });
+  unavailable = true;
+  await page.getByTestId('verification-refresh').click();
+  await expect(page.getByTestId('verification-error')).toContainText('SES verification status is unavailable');
+  await expect(page.getByTestId('verification-table')).toHaveCount(0);
+});

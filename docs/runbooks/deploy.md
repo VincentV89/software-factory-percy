@@ -29,8 +29,15 @@ in SSM: it holds the CloudFront URL.
 
 `percy-account` creates the email identity, and SES sends a verification mail to that address.
 Click the link in it. The account stays in the SES sandbox, which allows 1 email per second and
-200 per day (risk R4). Verify each real test recipient as an identity too. Mailbox-simulator
+200 per day (risk R4). Verify each real test recipient as an email identity, or verify its domain. Mailbox-simulator
 addresses need no verification.
+
+The dev instance reads SES verification live in its sending region. There is no separate fixed
+Percy recipient allow-list to edit or redeploy. Lists and campaigns show **SES recipient verification**;
+click **Refresh SES status** after completing verification. Percy checks again during audience freeze,
+and refuses the send if an eligible recipient is unverified or SES status cannot be read. Suppressions
+still apply independently. Only the ContactSG API and freeze function have read-only
+`ses:ListEmailIdentities` permission; production behavior is unchanged.
 
 ## 3. First platform admin and officers
 
