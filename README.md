@@ -20,6 +20,7 @@ unsubscribe. This repository is the MVP slice described in the AI-DLC `mvp-auto-
 | `tests/e2e` | Playwright E2E-01 (22 steps) for a deployed instance or the local server |
 | `scripts` | Bootstrap admin, create officers, E2E fixtures, kill send workers, capacity harness |
 | `docs` | Runbooks and the ADR index |
+| `.github/workflows` | CI: `check` and `e2e-local` jobs |
 
 ## Commands
 
@@ -34,6 +35,11 @@ npx tsx scripts/capacity-harness.ts --recipients 2000 --rate 20 --concurrency 5
 
 `npm run check` needs only Node: no Docker, Java or AWS credentials. Synth output goes to
 `/tmp/percy-cdk.out`. Deployment is described in `docs/runbooks/deploy.md`.
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request and every push to `main`.
+The `check` job runs `npm run check` and `npm audit` (it fails on critical advisories in runtime
+dependencies and only reports the rest). The `e2e-local` job runs `npm run e2e:local` in Chromium.
+CI holds no AWS credentials and deploys nothing.
 
 ## Boundaries
 
