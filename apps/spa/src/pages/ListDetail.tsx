@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { api } from '../api';
 import { Empty, ErrorBox, StateBadge, formatTime, useLoad } from '../components';
+import { useMe } from '../session';
+import { RecipientVerificationPanel } from '../RecipientVerification';
 
 interface ImportRecord {
   importId: string;
@@ -16,6 +18,7 @@ const FINAL = ['COMPLETED', 'FAILED', 'REJECTED_MALWARE'];
 
 /** List detail with CSV upload through a presigned POST and import status (FR-CON-03..06). */
 export function ListDetail() {
+  const me = useMe();
   const { teamId = '', listId = '' } = useParams();
   const navigate = useNavigate();
   const base = `/api/contacts/teams/${teamId}/lists/${listId}`;
@@ -25,6 +28,10 @@ export function ListDetail() {
   const members = useLoad(() => api<{ items: { addrHash: string; email?: string; attrs: Record<string, string>; suppressed: boolean }[] }>('GET', `${base}/members`), [base, list.data?.memberCount]);
   const [error, setError] = useState<unknown>();
   const [uploading, setUploading] = useState(false);
+  const [verificationVersion, setVerificationVersion] = useState(0);
+  const [name, setName] = useState('');
+  const [renamed, setRenamed] = useState(false);
+  useEffect(() => setName(list.data?.name ?? ''), [list.data?.name]);
   const file = useRef<HTMLInputElement>(null);
   const running = imports.data?.items.some((i) => !FINAL.includes(i.status)) ?? false;
   useEffect(() => setPoll(running ? 2000 : undefined), [running]);
@@ -64,13 +71,21 @@ export function ListDetail() {
   return (
     <section data-testid="list-detail">
       <h1>{list.data?.name}</h1>
+      <form className="inline" onSubmit={(event) => {
+        event.preventDefault(); setError(undefined); setRenamed(false);
+        void api('PATCH', base, { name }).then(() => { list.reload(); setRenamed(true); }, setError);
+      }}>
+        <label>List name <input required maxLength={120} value={name} onChange={(e) => setName(e.target.value)} data-testid="list-rename-name" /></label>
+        <button type="submit" data-testid="list-rename-submit">Rename list</button>
+        {renamed && <span role="status" className="notice">Name saved.</span>}
+      </form>
       <p>Members: <span data-testid="list-member-count">{list.data?.memberCount ?? 0}</span> · Audience: <span data-testid="list-audience-count">{list.data?.eligibleCount ?? 0}</span></p>
       <div className="card">
         <h2>Upload a CSV</h2>
         <p className="muted">UTF-8, comma-separated, a header row with an <code>email</code> column and up to 20 other columns, up to 1,000,000 rows and 200 MB.</p>
         <input type="file" accept=".csv,text/csv" ref={file} data-testid="list-upload-input" />
         <button type="button" disabled={uploading} onClick={() => void upload()} data-testid="list-upload-button">Upload</button>
-        <button type="button" className="link" onClick={() => { imports.reload(); list.reload(); }} data-testid="list-refresh">Refresh</button>
+        <button type="button" className="link" onClick={() => { imports.reload(); list.reload(); setVerificationVersion((v) => v + 1); }} data-testid="list-refresh">Refresh</button>
       </div>
       <ErrorBox error={error} />
       <h2>Imports</h2>
@@ -97,9 +112,10 @@ export function ListDetail() {
           )}
         </div>
       ))}
-      <h2>Members</h2>
+      <RecipientVerificationPanel key={teamId + listId} teamId={teamId} listId={listId} version={(list.data?.memberCount ?? 0) + ':' + verificationVersion} />
+      {!me.testingEnabled && <h2>Members</h2>}
       {members.data?.items.length === 0 && <Empty testId="members-empty">This list has no members. Upload a CSV.</Empty>}
-      {members.data && members.data.items.length > 0 && (
+      {!me.testingEnabled && members.data && members.data.items.length > 0 && (
         <table data-testid="members-table">
           <thead><tr><th>Email</th><th>Attributes</th><th>Suppressed</th></tr></thead>
           <tbody>

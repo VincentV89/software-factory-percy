@@ -139,13 +139,13 @@ describe('freeze (FR-SCH-03/04, NFR-INF-05)', () => {
     expect((await l.a.call('DELETE', `/api/contacts/teams/${l.teamId}/lists/${l.listId}`)).status).toBe(204);
   });
 
-  it('an address outside the dev allow-list fails the freeze with a clear error', async () => {
+  it('an SES-unverified recipient fails the freeze with a clear error', async () => {
     const sys = createSystem({ clock: new VirtualClock() });
     const l = await launch(sys, ['success+ok@simulator.amazonses.com', 'someone@gmail.com']);
     await sys.runFor(5000);
     const c = await campaignState(l.a, l.teamId, l.campaignId);
     expect(c.state).toBe('APPROVED');
-    expect(c.error).toContain('not on this instance');
+    expect(c.error).toContain('not verified in SES');
     expect(sys.ses.calls).toHaveLength(0);
   });
 

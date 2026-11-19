@@ -3,11 +3,13 @@ import { createLogger, requireEnv, systemClock } from '@percy/shared';
 import { DynamoKvStore } from '@percy/shared/dynamo';
 import { S3ObjectStore, SfnWorkflowStarter, SqsQueueSender } from '@percy/shared/aws';
 import { FirehoseAuditClient } from '@percy/platform-contract/aws';
+import { SesRecipientVerification } from '../aws-recipient-verification';
 
 /** Composition root shared by the ContactSG Lambdas. */
 export function contactSgRuntime(service: string): ContactSgDeps {
   const store = new S3ObjectStore();
   return {
+    recipientVerification: process.env['PERCY_INSTANCE'] === 'dev' ? new SesRecipientVerification() : undefined,
     kv: new DynamoKvStore(),
     tables: {
       contacts: requireEnv('CONTACTS_TABLE'),

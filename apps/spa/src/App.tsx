@@ -11,6 +11,7 @@ import { ListDetail } from './pages/ListDetail';
 import { ListsPage } from './pages/Lists';
 import { TemplateEditor } from './pages/TemplateEditor';
 import { TemplatesPage } from './pages/Templates';
+import { TestJourneysPage } from './pages/TestJourneys';
 
 export function App() {
   const [me, setMe] = useState<Me>();
@@ -100,6 +101,7 @@ function Shell() {
         )}
         {isAdmin(me) && <NavLink to="/kill-switch" data-testid="nav-kill-switch">Kill switch</NavLink>}
         {isAdmin(me) && <NavLink to="/admin" data-testid="nav-admin">Admin</NavLink>}
+        {me.testingEnabled && <NavLink to="/test-journeys" data-testid="nav-test-journeys">Test journeys</NavLink>}
         <span className="who" data-testid="whoami">{me.email ?? me.officerId}</span>
         <button type="button" onClick={() => void signOut()} data-testid="sign-out-button">Sign out</button>
       </header>
@@ -111,6 +113,7 @@ function Shell() {
           <Route path="/teams/:teamId/*" element={<TeamRoutes />} />
           <Route path="/kill-switch" element={isAdmin(me) ? <KillSwitchPage /> : <Navigate to="/" />} />
           <Route path="/admin" element={isAdmin(me) ? <AdminPage /> : <Navigate to="/" />} />
+          <Route path="/test-journeys" element={me.testingEnabled ? <TestJourneysPage /> : <Navigate to="/" />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>

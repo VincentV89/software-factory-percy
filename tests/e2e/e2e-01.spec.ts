@@ -195,7 +195,7 @@ test('E2E-01: officer journey from sign-in to stop', async ({ browser, baseURL }
     expect(row?.devUnsubUrl).toBeTruthy();
     const u = await newPage();
     await u.goto(row?.devUnsubUrl ?? '');
-    await expect(u.getByTestId('unsubscribe-agency')).toHaveText('E2E Agency');
+    await expect(u.getByTestId('unsubscribe-agency')).toHaveText(target.agencyName);
     await u.getByTestId('unsubscribe-confirm').click();
     await expect(u.getByTestId('unsubscribe-success')).toBeVisible();
   });
@@ -299,8 +299,9 @@ test('E2E-01: officer journey from sign-in to stop', async ({ browser, baseURL }
 
   await test.step('22 sign out; the old cookie gets 401', async () => {
     const old = (await a.context().cookies(baseURL)).find((x) => x.name === 'percy_sid')?.value ?? '';
+    const logout = a.waitForResponse((res) => new URL(res.url()).pathname === '/auth/logout' && res.request().method() === 'POST');
     await a.getByTestId('sign-out-button').click();
-    await a.waitForLoadState();
+    expect((await logout).status()).toBe(200);
     const api = await request.newContext({ baseURL, extraHTTPHeaders: { cookie: `percy_sid=${old}` } });
     const res = await api.get(`/api/engine/teams/${teamId}/campaigns`);
     expect(res.status()).toBe(401);

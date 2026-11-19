@@ -160,6 +160,8 @@ export class FoundationStack extends Stack {
     });
     this.authorizer = fn('PlatformAuthorizer', 'packages/platform/src/handlers/authorizer.ts', 'REQUEST authorizer: session, CSRF, live roles');
     this.platformApi = fn('PlatformApi', 'packages/platform/src/handlers/api.ts', 'Platform admin API');
+    this.platformApi.addEnvironment('COGNITO_USER_POOL_ID', this.userPool.userPoolId);
+    this.platformApi.addToRolePolicy(new iam.PolicyStatement({ actions: ['cognito-idp:AdminCreateUser'], resources: [this.userPool.userPoolArn] }));
 
     for (const f of [this.bff, this.authorizer, this.platformApi]) {
       this.grantAudit(f);
@@ -183,6 +185,6 @@ export class FoundationStack extends Stack {
 
   grantAudit(grantee: iam.IGrantable): void {
     grantee.grantPrincipal.addToPrincipalPolicy(new iam.PolicyStatement({ actions: ['firehose:PutRecord', 'firehose:PutRecordBatch'], resources: [this.auditStream.attrArn] }));
-    this.keys.platform.grantEncrypt(grantee);
+    this.keys.platform.grant(grantee, 'kms:GenerateDataKey', 'kms:Decrypt');
   }
 }

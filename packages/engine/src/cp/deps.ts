@@ -12,7 +12,7 @@ export interface EngineCpConfig {
   instance: string;
   fromAddress: string;
   configurationSet?: string;
-  /** Set only on dev: verified identities plus *@simulator.amazonses.com (NFR-INF-05). */
+  /** Optional legacy restriction for custom instances. Dev eligibility is read from SES by ContactSG. */
   addressAllowList?: string[];
   /** Enables the dev-only send-log export (U7). */
   devExport: boolean;

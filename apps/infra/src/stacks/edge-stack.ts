@@ -97,7 +97,12 @@ export class EdgeStack extends Stack {
     auth.addResource('logout').addMethod('POST', bff);
     const api = this.cpApi.root.addResource('api');
     const proxy = (resource: apigw.IResource, fn: lambda.IFunction, lid: string): void => {
-      resource.addResource('{proxy+}').addMethod('ANY', new apigw.LambdaIntegration(local(lid, fn)), { authorizer, authorizationType: apigw.AuthorizationType.CUSTOM });
+      const route = resource.addResource('{proxy+}');
+      const integration = new apigw.LambdaIntegration(local(lid, fn));
+      // The REQUEST authorizer must receive a concrete verb for safe-method/CSRF checks.
+      for (const method of ['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE']) {
+        route.addMethod(method, integration, { authorizer, authorizationType: apigw.AuthorizationType.CUSTOM });
+      }
     };
     proxy(api.addResource('platform'), f.platformApi, 'PlatformApiFn');
     proxy(api.addResource('contacts'), c.api, 'ContactSgApiFn');

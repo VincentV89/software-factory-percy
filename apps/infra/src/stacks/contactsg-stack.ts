@@ -74,18 +74,21 @@ export class ContactSgStack extends Stack {
     tagOwner(gdRole, 'contactsg', 'async');
     gdRole.addToPolicy(new iam.PolicyStatement({ actions: ['s3:GetObject', 's3:GetObjectVersion', 's3:GetObjectTagging', 's3:GetObjectVersionTagging', 's3:PutObjectTagging', 's3:PutObjectVersionTagging'], resources: [uploads.arnForObjects('raw/*')] }));
     gdRole.addToPolicy(new iam.PolicyStatement({ actions: ['s3:ListBucket', 's3:GetBucketNotification', 's3:PutBucketNotification', 's3:GetBucketLocation'], resources: [uploads.bucketArn] }));
+    gdRole.addToPolicy(new iam.PolicyStatement({ actions: ['s3:PutObject'], resources: [uploads.arnForObjects('malware-protection-resource-validation-object')] }));
     gdRole.addToPolicy(
       new iam.PolicyStatement({
         actions: ['events:PutRule', 'events:DeleteRule', 'events:PutTargets', 'events:RemoveTargets', 'events:DescribeRule', 'events:ListTargetsByRule'],
         resources: [this.formatArn({ service: 'events', resource: 'rule', resourceName: 'DO-NOT-DELETE-AmazonGuardDutyMalwareProtectionS3*' })],
       }),
     );
-    key.grantDecrypt(gdRole);
-    new guardduty.CfnMalwareProtectionPlan(this, 'UploadsMalwareProtection', {
+    key.grant(gdRole, 'kms:Decrypt', 'kms:GenerateDataKey');
+    const malwarePlan = new guardduty.CfnMalwareProtectionPlan(this, 'UploadsMalwareProtection', {
       role: gdRole.roleArn,
       protectedResource: { s3Bucket: { bucketName: uploads.bucketName, objectPrefixes: ['raw/'] } },
       actions: { tagging: { status: 'ENABLED' } },
     });
+    // GuardDuty validates bucket access during creation, after the role's policy is attached.
+    malwarePlan.node.addDependency(gdRole.node.findChild('DefaultPolicy'));
     suppress(gdRole, [{ id: 'AwsSolutions-IAM5', reason: 'GuardDuty scans every object under raw/ and manages its own DO-NOT-DELETE-AmazonGuardDutyMalwareProtectionS3* rules (AWS-documented role policy).' }]);
 
     // ---- Queues ----
@@ -115,6 +118,11 @@ export class ContactSgStack extends Stack {
     const scanResult = fn('ScanResult', 'scan-result', 'async', { description: 'S3 Object Created + GuardDuty scan result', timeout: Duration.minutes(5), memorySize: 1024 });
     const importSteps = fn('ImportSteps', 'import-steps', 'async', { description: 'Import state machine tasks', timeout: Duration.minutes(15), memorySize: 3008 });
     const freezeFn = fn('Freeze', 'freeze', 'async', { description: 'Audience freeze', timeout: Duration.minutes(15), memorySize: 2048 });
+    if (cfg.instance === 'dev') {
+      for (const reader of [this.api, freezeFn]) {
+        reader.addToRolePolicy(new iam.PolicyStatement({ actions: ['ses:ListEmailIdentities'], resources: ['*'] }));
+      }
+    }
     const suppressFn = fn('Suppress', 'suppress', 'async', { description: 'Suppression writer and membership fan-out', timeout: Duration.minutes(1) });
     this.internalFn = fn('Internal', 'internal', 'cp', { description: 'List holds for the Engine control plane' });
 
@@ -176,7 +184,7 @@ export class ContactSgStack extends Stack {
     }
 
     suppress(this, [
-      { id: 'AwsSolutions-IAM5', reason: 'CDK grant helpers add index/* and object/* wildcards scoped to this context’s own tables, buckets and keys.' },
+      { id: 'AwsSolutions-IAM5', reason: 'CDK grants scope index/object wildcards to owned resources; SES ListEmailIdentities requires an account-wide wildcard resource for dev verification reads.' },
       { id: 'AwsSolutions-IAM4', reason: 'Lambda roles use AWSLambdaBasicExecutionRole for log delivery; CDK-provided custom resources do the same.', appliesTo: ['Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'] },
       { id: 'AwsSolutions-L1', reason: LAMBDA_RUNTIME_REASON },
       { id: 'AwsSolutions-SQS3', reason: 'Dead-letter queues are the end of the redrive chain and are watched by DLQ-depth alarms.' },

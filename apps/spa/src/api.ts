@@ -49,6 +49,7 @@ export interface Team {
 }
 
 export interface Me {
+  testingEnabled?: boolean;
   officerId: string;
   email?: string;
   platformAdmin: boolean;

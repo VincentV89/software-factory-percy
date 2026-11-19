@@ -5,3 +5,4 @@ export * from './imports';
 export * from './suppressions';
 export * from './freeze';
 export * from './api';
+export * from './recipient-verification';

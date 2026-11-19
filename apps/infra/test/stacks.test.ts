@@ -1,7 +1,7 @@
 import { Annotations, Match } from 'aws-cdk-lib/assertions';
 import { describe, expect, it } from 'vitest';
 import { SPA_CSP } from '../src/stacks/edge-stack';
-import { app, templates } from './helpers';
+import { app, grants, resolveRef, templates } from './helpers';
 
 const byName = (name: string, instance = 'dev') => {
   const t = templates(instance).find((s) => s.name === name);
@@ -10,6 +10,89 @@ const byName = (name: string, instance = 'dev') => {
 };
 
 describe('CDK assertions (dev)', () => {
+  it('dev uses live SES verification instead of a fixed recipient allow-list', () => {
+    const all = templates('dev');
+    for (const stack of all) {
+      for (const resource of Object.values(stack.json.Resources)) {
+        if (resource.Type === 'AWS::Lambda::Function') {
+          expect((resource.Properties?.['Environment'] as { Variables?: Record<string, string> } | undefined)?.Variables?.['ADDRESS_ALLOW_LIST']).toBeUndefined();
+        }
+      }
+    }
+    const readers = grants(all).filter((grant) => grant.actions.includes('ses:ListEmailIdentities'));
+    expect(readers).toHaveLength(2);
+    expect(readers.map((grant) => grant.role.logicalId).sort()).toEqual([expect.stringMatching(/^ContactSgApiServiceRole/), expect.stringMatching(/^FreezeServiceRole/)]);
+    expect(grants(templates('prod')).some((grant) => grant.actions.includes('ses:ListEmailIdentities'))).toBe(false);
+  });
+
+  it('officer invitations are scoped to the officer pool and platform API role', () => {
+    const all = templates('dev');
+    const invitations = grants(all).filter((grant) => grant.actions.includes('cognito-idp:AdminCreateUser'));
+    expect(invitations).toHaveLength(1);
+    const invitation = invitations[0];
+    expect(invitation?.role.logicalId).toMatch(/^PlatformApiServiceRole/);
+    expect(invitation?.resources.map((resource) => resolveRef(resource, invitation.stack, all)?.logicalId)).toEqual([expect.stringMatching(/^Officers/)]);
+  });
+
+  it('audit producers can generate and decrypt the Firehose stream data key', () => {
+    const stacks = templates('dev');
+    const allGrants = grants(stacks);
+    const producers = allGrants.filter((g) => g.actions.includes('firehose:PutRecord'));
+    expect(producers.length).toBeGreaterThan(0);
+    for (const producer of producers) {
+      const keyGrants = allGrants.filter((g) => g.role.stack === producer.role.stack && g.role.logicalId === producer.role.logicalId &&
+        g.resources.some((resource) => {
+          const ref = resolveRef(resource, g.stack, stacks);
+          return ref?.stack === 'percy-dev-foundation' && ref.logicalId.startsWith('platformKey');
+        }));
+      const actions = keyGrants.flatMap((g) => g.actions);
+      expect(actions).toContain('kms:Decrypt');
+      expect(actions.some((action) => action === 'kms:GenerateDataKey' || action === 'kms:GenerateDataKey*')).toBe(true);
+    }
+  });
+
+  it('standard queues omit FIFO-only attributes', () => {
+    for (const stack of templates('dev')) {
+      for (const resource of Object.values(stack.json.Resources)) {
+        if (resource.Type === 'AWS::SQS::Queue' && resource.Properties?.['FifoQueue'] !== true) {
+          expect(resource.Properties).not.toHaveProperty('ContentBasedDeduplication');
+        }
+      }
+    }
+  });
+
+  it('GuardDuty can validate its encrypted bucket after its IAM policy is attached', () => {
+    const template = byName('percy-dev-contactsg').template;
+    template.hasResource('AWS::GuardDuty::MalwareProtectionPlan', {
+      DependsOn: Match.arrayWith([Match.stringLikeRegexp('^MalwareProtectionRoleDefaultPolicy')]),
+    });
+    template.hasResourceProperties('AWS::IAM::Policy', {
+      PolicyDocument: { Statement: Match.arrayWith([
+        Match.objectLike({ Action: 's3:PutObject', Resource: { 'Fn::Join': ['', Match.arrayWith([Match.stringLikeRegexp('/malware-protection-resource-validation-object$')])] } }),
+        Match.objectLike({ Action: ['kms:Decrypt', 'kms:GenerateDataKey'] }),
+      ]) },
+    });
+  });
+
+  it('outbox pipes wait for their stream-reading IAM policy', () => {
+    for (const stack of templates('dev')) {
+      const pipes = stack.template.findResources('AWS::Pipes::Pipe');
+      for (const pipe of Object.values(pipes)) {
+        const policyIds = new Set(Object.keys(stack.template.findResources('AWS::IAM::Policy')));
+        expect(pipe.DependsOn.some((id: string) => policyIds.has(id))).toBe(true);
+      }
+    }
+  });
+
+  it('authenticated proxy routes use concrete verbs for CSRF checks', () => {
+    const methods = Object.values(byName('percy-dev-edge').json.Resources)
+      .filter((r) => r.Type === 'AWS::ApiGateway::Method' && r.Properties?.['AuthorizationType'] === 'CUSTOM');
+    expect(methods).toHaveLength(21);
+    for (const verb of ['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE']) {
+      expect(methods.filter((r) => r.Properties?.['HttpMethod'] === verb)).toHaveLength(3);
+    }
+  });
+
   it('snapshot bucket expires objects after 7 days (FR-SCH-05)', () => {
     byName('percy-dev-contactsg').template.hasResourceProperties('AWS::S3::Bucket', {
       LifecycleConfiguration: { Rules: Match.arrayWith([Match.objectLike({ Id: 'snapshot-retention', ExpirationInDays: 7, Status: 'Enabled' })]) },

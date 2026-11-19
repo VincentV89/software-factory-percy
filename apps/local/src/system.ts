@@ -25,6 +25,7 @@ import {
   createContactSgApi,
   type ContactSgDeps,
   type ImportRef,
+  type RecipientVerification,
 } from '@percy/contactsg';
 import { KvListReader, KvMemberReader, KvSuppressionReader, ObjectSnapshotReader, audienceFrozenSchema, freezeRequestSchema, suppressionRequestSchema, type ListHoldClient } from '@percy/contactsg-contract';
 import { sendCommandSchema } from '@percy/engine-contract';
@@ -84,6 +85,7 @@ export const QUEUES = {
 const EICAR = 'X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*';
 
 export interface SystemOptions {
+  recipientVerification?: RecipientVerification;
   clock?: Clock;
   baseUrl?: string;
   rates?: EngineDpConfig['rates'];
@@ -149,10 +151,20 @@ export function createSystem(opts: SystemOptions = {}) {
   const sessions = new SessionRepo(kv, TABLES.sessions, policy);
   const oidc = new FakeOidc(baseUrl);
   const bff: BffDeps = { sessions, tenancy, oidc, audit, policy, publicBaseUrl: async () => baseUrl, now, logger };
-  const platformApi = createPlatformApi({ tenancy, sessions, audit, logger });
+  const platformApi = createPlatformApi({ tenancy, sessions, audit, logger, testingEnabled: true,
+    invitations: { invite: async () => ({ delivery: 'local' as const }) },
+  });
 
   // ---- ContactSG ----------------------------------------------------------
   const contactSg: ContactSgDeps = {
+    recipientVerification: opts.recipientVerification ?? { snapshot: async () => ({
+      region: 'local', checkedAt: new Date(now()).toISOString(),
+      identities: (opts.allowList ?? []).filter((pattern) => pattern !== '*@simulator.amazonses.com').map((pattern) => ({
+        name: pattern.startsWith('*@') ? pattern.slice(2) : pattern,
+        type: pattern.startsWith('*@') ? 'DOMAIN' as const : 'EMAIL_ADDRESS' as const,
+        status: 'SUCCESS', verified: true,
+      })),
+    }) },
     kv,
     tables: { contacts: TABLES.contacts, imports: TABLES.imports, suppressions: TABLES.suppressions, freezes: TABLES.freezes, outbox: TABLES.contactsgOutbox },
     store,
@@ -192,7 +204,6 @@ export function createSystem(opts: SystemOptions = {}) {
       scheduled.delete(name);
     },
   };
-  const allowList = opts.allowList ?? ['*@simulator.amazonses.com'];
   const cp: EngineCpDeps = {
     kv,
     tables: { campaigns: TABLES.campaigns, sendlog: TABLES.sendlog },
@@ -208,7 +219,7 @@ export function createSystem(opts: SystemOptions = {}) {
     audit,
     clock,
     logger,
-    config: { instance: 'dev', fromAddress: 'percy-dev@example.gov.sg', configurationSet: 'percy-dev', addressAllowList: allowList, devExport: true, snapshotRetentionMs: 7 * 24 * 3600_000 },
+    config: { instance: 'dev', fromAddress: 'percy-dev@example.gov.sg', configurationSet: 'percy-dev', devExport: true, snapshotRetentionMs: 7 * 24 * 3600_000 },
   };
   const cpService = new CampaignService(cp);
   late.campaigns = cpService;
